@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>車両位置情報の送信</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 40px 20px; background:#f4f4f9; }
+    h2 { color:#0056b3; }
+    .send-btn { display:block; width:100%; max-width:300px; margin:30px auto; padding:20px;
+      font-size:1.3em; font-weight:bold; color:#fff; background:#28a745; border:none;
+      border-radius:10px; box-shadow:0 4px 6px rgba(0,0,0,.1); }
+    .send-btn:disabled { background:#999; }
+    #status { margin-top:20px; font-size:1.1em; font-weight:bold; line-height:1.5; }
+  </style>
+</head>
+<body>
+  <h2>車両位置情報の送信</h2>
+  <p>管理番号: <strong id="tagLabel"></strong></p>
+  <button id="gpsBtn" class="send-btn">位置情報を送信する</button>
+  <div id="status">上のボタンを押してください</div>
+
+  <script>
+    // ★GASのWebアプリURL（/exec）に置き換える
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwoZC0D9boUvGWCEbiJbJQO2c4O3Kc5wwTcEskqqJlISmQNp4XpYNY7FZP-yIfiZwQR/exec";
+
+    const tagId = new URLSearchParams(location.search).get("tag") || "";
+    document.getElementById("tagLabel").textContent = tagId || "(未指定)";
+
+    const btn = document.getElementById("gpsBtn");
+    const statusDiv = document.getElementById("status");
+
+    function show(msg, color) {
+      statusDiv.innerHTML = msg;
+      statusDiv.style.color = color || "#333";
+    }
+
+    // 高精度で取得 → タイムアウトしたら低精度で再取得
+    function getPosition(highAccuracy) {
+      return new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: highAccuracy,
+          timeout: highAccuracy ? 20000 : 15000,
+          maximumAge: highAccuracy ? 0 : 60000
+        });
+      });
+    }
+
+    btn.addEventListener("click", async () => {
+      if (!tagId) { show("管理番号がURLに含まれていません。", "red"); return; }
+      if (!window.isSecureContext) { show("https:// で開いてください。", "red"); return; }
+      if (!navigator.geolocation) { show("このブラウザは位置情報に対応していません。", "red"); return; }
+
+      btn.disabled = true;
+      show("位置情報を取得中...<br>※「許可」が出たら許可してください");
+
+      let pos;
+      try {
+        pos = await getPosition(true);
+      } catch (e) {
+        if (e.code === 3) {               // タイムアウト → 低精度で再試行
+          try { pos = await getPosition(false); } catch (e2) { return fail(e2); }
+        } else {
+          return fail(e);
+        }
+      }
+
+      show("位置情報を送信中...");
+      try {
+        const res = await fetch(GAS_URL, {
+          method: "POST",
+          // text/plain にすると事前確認（プリフライト）が発生せず、GASに送れる
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify({
+            tagId: tagId,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            accuracy: pos.coords.accuracy
+          })
+        });
+        const text = await res.text();
+        show(text, "green");
+      } catch (err) {
+        show("送信に失敗しました。電波状況を確認して再度お試しください。", "red");
+        btn.disabled = false;
+      }
+    });
+
+    function fail(error) {
+      const msgs = {
+        1: "位置情報の利用が許可されていません。<br>" +
+           "①設定＞プライバシーとセキュリティ＞位置情報サービス＞Safariのwebサイト＞「使用中」<br>" +
+           "②Safariのアドレスバー左の「ぁあ」＞Webサイトの設定＞位置情報＞「許可」",
+        2: "現在地を特定できません。（屋外でお試しください）",
+        3: "位置情報の取得がタイムアウトしました。もう一度お試しください。"
+      };
+      show(msgs[error.code] || "エラーが発生しました。", "red");
+      btn.disabled = false;
+    }
+  </script>
+</body>
+</html>
