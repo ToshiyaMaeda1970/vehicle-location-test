@@ -81,7 +81,7 @@
         const text = await res.text();
         show(text, "green");
       } catch (err) {
-        show("送信に失敗しました。電波状況を確認して再度お試しください。", "red");
+        show("送信に失敗しました。電波状況を確認して再度お試しください。"+ err.message, "red");
         btn.disabled = false;
       }
     });
