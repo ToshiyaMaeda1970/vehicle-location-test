@@ -24,7 +24,7 @@
     // ★GASのWebアプリURL（/exec）に置き換える
     const GAS_URL = "https://script.google.com/macros/s/AKfycbwoZC0D9boUvGWCEbiJbJQO2c4O3Kc5wwTcEskqqJlISmQNp4XpYNY7FZP-yIfiZwQR/exec";
 
-    const tagId = new URLSearchParams(location.search).get("tag") || "";
+    const tagId = new URLSearchParams(location.search).get("id") || "";
     document.getElementById("tagLabel").textContent = tagId || "(未指定)";
 
     const btn = document.getElementById("gpsBtn");
