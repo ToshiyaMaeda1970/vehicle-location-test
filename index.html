@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>車両位置 送信システム</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9;
+margin: 0; padding: 16px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+
+.card { background: #ffffff; width: 100%; max-width: 420px; padding: 28px 22px; border-radius: 16px; box-
+shadow: 0 10px 25px rgba(15,23,42,0.08); text-align: center; }
+
+h1 { font-size: 1.35rem; color: #0f172a; margin: 0 0 16px 0; }
+.tag-box { background: #eff6ff; border: 2px solid #3b82f6; color: #1e3a8a; font-size: 1.5rem; font-weight:
+800; padding: 16px; border-radius: 12px; margin-bottom: 16px; }
+.btn { background: #2563eb; color: #ffffff; border: none; width: 100%; padding: 18px; font-size: 1.15rem;
+font-weight: bold; border-radius: 12px; cursor: pointer; }
+.btn:disabled { background: #94a3b8; }
+#status { margin-top: 20px; padding: 16px; border-radius: 10px; font-size: 0.95rem; font-weight: bold;
+line-height: 1.6; display: none; text-align: left; }
+
+.wait { background: #fefce8; color: #a16207; border: 1px solid #fde047; display: block !important; text-
+align: center !important; }
+
+.ok { background: #f0fdf4; color: #15803d; border: 1px solid #86efac; display: block !important; }
+.ng { background: #fef2f2; color: #b91c1c; border: 1px solid #fca5a5; display: block !important; }
+</style>
+</head>
+<body>
+<div class="card">
+<h1> 車両位置情報 送信</h1>
+<div id="tagDisplay" class="tag-box">キータグ確認中...</div>
+<p style="color:#64748b; font-size:0.9rem; margin-bottom:22px;">ボタンを押すと現在地を統合管理表へ自動記録します</
+p>
+<button id="sendBtn" class="btn" onclick="sendLocation()">位置情報を送信する</button>
+<div id="status"></div>
+</div>
+<script>
+// ★ここに第3部でコピーしたGASのURL(/execで終わるもの)を貼り付けてください
+const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxnmpStKteexB8vPYwjPJRGNHTE2cCb7Z9s1tOVOTOE_onWDmzgVJcjMCWKKY3wPsweQw/exec";
+const params = new URLSearchParams(window.location.search);
+const keyId = params.get("id") || params.get("key");
+const tagDisplay = document.getElementById("tagDisplay");
+const sendBtn = document.getElementById("sendBtn");
+if (keyId) {
+tagDisplay.textContent = "固定タグ No. " + keyId;
+} else {
+tagDisplay.textContent = "キー番号が未指定です";
+sendBtn.disabled = true;
+}
+function sendLocation() {
+const statusDiv = document.getElementById("status");
+
+sendBtn.disabled = true;
+statusDiv.className = "wait";
+statusDiv.innerHTML = " スマホのGPSで現在地を取得しています...";
+if (!navigator.geolocation) {
+statusDiv.className = "ng";
+statusDiv.innerHTML = " お使いのブラウザは位置情報に対応していません。";
+return;
+}
+navigator.geolocation.getCurrentPosition(
+function(pos) {
+statusDiv.innerHTML = " 統合管理表へデータを記録しています...";
+const payload = { id: keyId, lat: pos.coords.latitude, lng: pos.coords.longitude };
+fetch(GAS_WEB_APP_URL, {
+method: "POST",
+headers: { "Content-Type": "text/plain" },
+body: JSON.stringify(payload)
+})
+.then(res => res.json())
+.then(result => {
+if (result.status === "success") {
+statusDiv.className = "ok";
+statusDiv.innerHTML = " <strong>現在地の記録が完了しました!</strong><br>・対象車両: " + result.car
++ "<br>・判定場所: <strong>" + result.location + "</strong>";
+} else {
+statusDiv.className = "ng";
+statusDiv.innerHTML = " <strong>エラー</strong><br>" + result.message;
+sendBtn.disabled = false;
+}
+})
+.catch(err => {
+statusDiv.className = "ng";
+statusDiv.innerHTML = " 通信エラーが発生しました。GASのURL設定を確認してください。";
+sendBtn.disabled = false;
+});
+},
+function(err) {
+statusDiv.className = "ng";
+statusDiv.innerHTML = " 位置情報が取得できませんでした。ブラウザの位置情報を「許可」してください。";
+sendBtn.disabled = false;
+},
+{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+);
+}
+</script>
+</body>
+</html>
